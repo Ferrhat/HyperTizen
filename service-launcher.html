@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperTizen Service Launcher</title>
+    <style>
+        body {
+            background-color: #2c3e50;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+            color: white;
+            text-align: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #3498db;
+            font-size: 48px;
+            margin-bottom: 30px;
+        }
+        
+        .status {
+            font-size: 24px;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #34495e;
+        }
+        
+        .status.success { background-color: #27ae60; }
+        .status.error { background-color: #e74c3c; }
+        .status.warning { background-color: #f39c12; }
+        
+        .buttons {
+            margin: 40px 0;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 20px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            min-width: 200px;
+            transition: all 0.3s;
+        }
+        
+        button:hover, button:focus {
+            background-color: #2980b9;
+            transform: scale(1.05);
+            outline: 3px solid #fff;
+        }
+        
+        .launch-btn { background-color: #27ae60; }
+        .launch-btn:hover { background-color: #219a52; }
+        
+        .test-btn { background-color: #f39c12; }
+        .test-btn:hover { background-color: #e67e22; }
+        
+        .clear-btn { background-color: #95a5a6; }
+        .clear-btn:hover { background-color: #7f8c8d; }
+        
+        .log {
+            background-color: #1a1a1a;
+            border: 2px solid #34495e;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            height: 300px;
+            overflow-y: auto;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }
+        
+        .log-entry.success { border-color: #27ae60; color: #2ecc71; }
+        .log-entry.error { border-color: #e74c3c; color: #e74c3c; }
+        .log-entry.warning { border-color: #f39c12; color: #f39c12; }
+        .log-entry.info { border-color: #3498db; color: #3498db; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 HyperTizen Service Launcher</h1>
+        
+        <div id="mainStatus" class="status">Ready to launch service</div>
+        
+        <div class="buttons">
+            <button class="launch-btn" onclick="launchService()" tabindex="0">
+                🚀 Launch Service
+            </button>
+            <button class="test-btn" onclick="testService()" tabindex="0">
+                🔍 Test Service
+            </button>
+            <button class="clear-btn" onclick="clearLog()" tabindex="0">
+                🧹 Clear Log
+            </button>
+        </div>
+        
+        <div class="log" id="logContainer">
+            <div class="log-entry info">Service Launcher ready. Click "Launch Service" to start HyperTizen service.</div>
+        </div>
+    </div>
+
+    <script>
+        let launchAttempts = 0;
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('mainStatus');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 entries
+            const entries = logContainer.children;
+            if (entries.length > 50) {
+                logContainer.removeChild(entries[0]);
+            }
+        }
+        
+        function launchService() {
+            launchAttempts++;
+            updateStatus('Launching service...', 'warning');
+            addLog(`🚀 Launch attempt #${launchAttempts} started`, 'info');
+            
+            try {
+                if (typeof tizen !== 'undefined' && tizen.application) {
+                    addLog('✅ Tizen API is available', 'success');
+                    
+                    // First check if service exists
+                    try {
+                        tizen.application.getAppInfo('io.gh.reisxd.HyperTizen');
+                        addLog('✅ HyperTizen service found in system', 'success');
+                        
+                        // Launch the service
+                        tizen.application.launch(
+                            'io.gh.reisxd.HyperTizen',
+                            function() {
+                                updateStatus('Service launched successfully!', 'success');
+                                addLog('🎉 HyperTizen service launched successfully!', 'success');
+                                addLog('🔌 WebSocket server should now be running on port 8086', 'success');
+                                
+                                // Auto-test after 2 seconds
+                                setTimeout(() => {
+                                    addLog('🔄 Auto-testing service in 2 seconds...', 'info');
+                                    testService();
+                                }, 2000);
+                            },
+                            function(error) {
+                                updateStatus('Failed to launch service', 'error');
+                                addLog(`❌ Service launch failed: ${error.message}`, 'error');
+                                addLog('💡 Try restarting the TV or check service permissions', 'warning');
+                            }
+                        );
+                    } catch (e) {
+                        updateStatus('Service not found', 'error');
+                        addLog(`❌ HyperTizen service not found: ${e.message}`, 'error');
+                        addLog('💡 Make sure the HyperTizen service package is installed', 'warning');
+                    }
+                } else {
+                    updateStatus('Tizen API not available', 'error');
+                    addLog('❌ Tizen API not available - not running on Tizen device', 'error');
+                    addLog('💡 This launcher only works on Samsung Tizen TVs', 'warning');
+                }
+            } catch (e) {
+                updateStatus('Launch error', 'error');
+                addLog(`❌ Unexpected error: ${e.message}`, 'error');
+            }
+        }
+        
+        function testService() {
+            addLog('🔍 Testing service status...', 'info');
+            updateStatus('Testing service...', 'warning');
+            
+            // Test WebSocket connection
+            const testWebSocket = () => {
+                addLog('🔌 Testing WebSocket connection to localhost:8086...', 'info');
+                
+                const ws = new WebSocket('ws://127.0.0.1:8086');
+                
+                ws.onopen = function() {
+                    updateStatus('Service is running and accessible!', 'success');
+                    addLog('✅ WebSocket connection successful!', 'success');
+                    addLog('🎯 Service is running and ready for connections', 'success');
+                    ws.close();
+                };
+                
+                ws.onerror = function() {
+                    updateStatus('Service not responding', 'error');
+                    addLog('❌ WebSocket connection failed', 'error');
+                    addLog('💡 Service may not be running - try launching it first', 'warning');
+                };
+                
+                ws.onclose = function() {
+                    addLog('🔌 WebSocket test completed', 'info');
+                };
+            };
+            
+            // Test with a slight delay
+            setTimeout(testWebSocket, 500);
+        }
+        
+        function clearLog() {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.innerHTML = '<div class="log-entry info">Log cleared. Ready for new messages.</div>';
+            updateStatus('Log cleared', 'info');
+        }
+        
+        // Keyboard navigation for TV remotes
+        document.addEventListener('keydown', function(e) {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const focusedIndex = buttons.indexOf(document.activeElement);
+            
+            switch(e.key) {
+                case 'ArrowRight':
+                case 'ArrowDown':
+                    e.preventDefault();
+                    const nextIndex = (focusedIndex + 1) % buttons.length;
+                    buttons[nextIndex].focus();
+                    break;
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    e.preventDefault();
+                    const prevIndex = (focusedIndex - 1 + buttons.length) % buttons.length;
+                    buttons[prevIndex].focus();
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    if (document.activeElement && document.activeElement.click) {
+                        document.activeElement.click();
+                    }
+                    break;
+            }
+        });
+        
+        // Auto-focus first button
+        window.onload = function() {
+            const firstButton = document.querySelector('button');
+            if (firstButton) {
+                firstButton.focus();
+            }
+            addLog('🎮 Use arrow keys to navigate, Enter to select', 'info');
+        };
+    </script>
+</body>
+</html>
