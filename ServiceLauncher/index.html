@@ -113,6 +113,9 @@
             <button class="test-btn" onclick="testService()" tabindex="0">
                 🔍 Test Service
             </button>
+            <button class="test-btn" onclick="checkBackgroundService()" tabindex="0">
+                🔧 Check Background
+            </button>
             <button class="clear-btn" onclick="clearLog()" tabindex="0">
                 🧹 Clear Log
             </button>
@@ -160,10 +163,33 @@
                     
                     // First check if service exists
                     try {
-                        tizen.application.getAppInfo('io.gh.reisxd.HyperTizen');
+                        const appInfo = tizen.application.getAppInfo('io.gh.reisxd.HyperTizen');
                         addLog('✅ HyperTizen service found in system', 'success');
+                        addLog(`   App Name: ${appInfo.name}`, 'info');
+                        addLog(`   App ID: ${appInfo.id}`, 'info');
+                        addLog(`   Package ID: ${appInfo.packageId}`, 'info');
+                        
+                        // Check if service is already running
+                        addLog('🔍 Checking if service is already running...', 'info');
+                        try {
+                            const runningApps = tizen.application.getAppsContext();
+                            const isRunning = runningApps.some(app => app.appId === 'io.gh.reisxd.HyperTizen');
+                            
+                            if (isRunning) {
+                                addLog('⚠️ Service appears to be already running', 'warning');
+                                addLog('🔄 Testing connection instead of launching...', 'info');
+                                setTimeout(testService, 1000);
+                                return;
+                            } else {
+                                addLog('✅ Service is not running, proceeding with launch', 'info');
+                            }
+                        } catch (contextError) {
+                            addLog(`⚠️ Could not check running apps: ${contextError.message}`, 'warning');
+                            addLog('🔄 Proceeding with launch attempt anyway...', 'info');
+                        }
                         
                         // Launch the service
+                        addLog('🔄 Attempting to launch service...', 'info');
                         tizen.application.launch(
                             'io.gh.reisxd.HyperTizen',
                             function() {
@@ -179,8 +205,33 @@
                             },
                             function(error) {
                                 updateStatus('Failed to launch service', 'error');
-                                addLog(`❌ Service launch failed: ${error.message}`, 'error');
-                                addLog('💡 Try restarting the TV or check service permissions', 'warning');
+                                addLog(`❌ Service launch failed with error:`, 'error');
+                                addLog(`   Error Name: ${error.name || 'Unknown'}`, 'error');
+                                addLog(`   Error Message: ${error.message || 'No message'}`, 'error');
+                                addLog(`   Error Code: ${error.code || 'No code'}`, 'error');
+                                
+                                // Additional debugging info
+                                if (error.name) {
+                                    switch(error.name) {
+                                        case 'SecurityError':
+                                            addLog('💡 Permission denied - check app privileges', 'warning');
+                                            break;
+                                        case 'NotFoundError':
+                                            addLog('💡 Service not found or not properly installed', 'warning');
+                                            break;
+                                        case 'InvalidStateError':
+                                            addLog('💡 Service may already be running', 'warning');
+                                            break;
+                                        case 'UnknownError':
+                                            addLog('💡 Try restarting the TV or reinstalling the service', 'warning');
+                                            break;
+                                        default:
+                                            addLog(`💡 Unhandled error type: ${error.name}`, 'warning');
+                                    }
+                                }
+                                
+                                addLog('🔍 Checking if service is already running...', 'info');
+                                setTimeout(testService, 1000);
                             }
                         );
                     } catch (e) {
@@ -203,27 +254,56 @@
             addLog('🔍 Testing service status...', 'info');
             updateStatus('Testing service...', 'warning');
             
+            // First check if service is in running apps
+            try {
+                const runningApps = tizen.application.getAppsContext();
+                const serviceApp = runningApps.find(app => app.appId === 'io.gh.reisxd.HyperTizen');
+                
+                if (serviceApp) {
+                    addLog('✅ Service is running in background', 'success');
+                    addLog(`   Service Context ID: ${serviceApp.id}`, 'info');
+                } else {
+                    addLog('⚠️ Service not found in running applications', 'warning');
+                }
+            } catch (e) {
+                addLog(`⚠️ Could not check running applications: ${e.message}`, 'warning');
+            }
+            
             // Test WebSocket connection
             const testWebSocket = () => {
                 addLog('🔌 Testing WebSocket connection to localhost:8086...', 'info');
                 
                 const ws = new WebSocket('ws://127.0.0.1:8086');
+                let connectionTimeout;
+                
+                // Set a timeout for the connection attempt
+                connectionTimeout = setTimeout(() => {
+                    addLog('⏰ WebSocket connection timeout (5 seconds)', 'warning');
+                    updateStatus('Service connection timeout', 'error');
+                    ws.close();
+                }, 5000);
                 
                 ws.onopen = function() {
+                    clearTimeout(connectionTimeout);
                     updateStatus('Service is running and accessible!', 'success');
                     addLog('✅ WebSocket connection successful!', 'success');
                     addLog('🎯 Service is running and ready for connections', 'success');
                     ws.close();
                 };
                 
-                ws.onerror = function() {
+                ws.onerror = function(error) {
+                    clearTimeout(connectionTimeout);
                     updateStatus('Service not responding', 'error');
                     addLog('❌ WebSocket connection failed', 'error');
-                    addLog('💡 Service may not be running - try launching it first', 'warning');
+                    addLog('💡 Possible causes:', 'warning');
+                    addLog('   • Service is not running', 'warning');
+                    addLog('   • Service failed to start properly', 'warning');
+                    addLog('   • Port 8086 is blocked or in use', 'warning');
+                    addLog('   • Service crashed after launch', 'warning');
                 };
                 
-                ws.onclose = function() {
-                    addLog('🔌 WebSocket test completed', 'info');
+                ws.onclose = function(event) {
+                    addLog(`🔌 WebSocket test completed (Code: ${event.code})`, 'info');
                 };
             };
             
@@ -235,6 +315,38 @@
             const logContainer = document.getElementById('logContainer');
             logContainer.innerHTML = '<div class="log-entry info">Log cleared. Ready for new messages.</div>';
             updateStatus('Log cleared', 'info');
+        }
+        
+        function checkBackgroundService() {
+            addLog('🔧 Checking background launcher service status...', 'info');
+            updateStatus('Checking background service...', 'warning');
+            
+            try {
+                // Check if this launcher app itself is running as a service
+                const runningApps = tizen.application.getAppsContext();
+                const launcherApp = runningApps.find(app => app.appId === 'io.gh.reisxd.ServiceLauncher');
+                
+                if (launcherApp) {
+                    addLog('✅ ServiceLauncher background service is running', 'success');
+                    addLog(`   Context ID: ${launcherApp.id}`, 'info');
+                } else {
+                    addLog('⚠️ ServiceLauncher background service not found in running apps', 'warning');
+                }
+                
+                // Also check for the main service
+                const mainService = runningApps.find(app => app.appId === 'io.gh.reisxd.HyperTizen');
+                if (mainService) {
+                    addLog('✅ Main HyperTizen service is also running!', 'success');
+                    addLog('🎯 Background service appears to have succeeded', 'success');
+                    setTimeout(testService, 1000);
+                } else {
+                    addLog('⚠️ Main HyperTizen service not running yet', 'warning');
+                    addLog('🔄 Background service may still be trying...', 'info');
+                }
+                
+            } catch (e) {
+                addLog(`❌ Error checking background service: ${e.message}`, 'error');
+            }
         }
         
         // Keyboard navigation for TV remotes
@@ -271,6 +383,13 @@
                 firstButton.focus();
             }
             addLog('🎮 Use arrow keys to navigate, Enter to select', 'info');
+            addLog('🔄 Background service is also trying to launch the main service...', 'info');
+            
+            // Check if background service managed to launch the main service
+            setTimeout(() => {
+                addLog('🔍 Checking if background service succeeded...', 'info');
+                testService();
+            }, 5000);
         };
     </script>
 </body>
