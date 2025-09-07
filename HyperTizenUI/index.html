@@ -15,8 +15,13 @@
         <h1>HyperTizen</h1>
         <h3 id="status">Status</h3>
         <a><input type="checkbox" id="enabled"> Enabled</a>
-        <h2 id="ssdpDeviceTitle">SSDP Devices</h2>
-        <div id="ssdpItems"></div>
+        <h2 id="upnpDeviceTitle">UPnP Devices</h2>
+        <div id="upnpItems"></div>
+        <div id="debugContainer">
+            <h3>Debug Messages</h3>
+            <button id="clearDebugBtn" onclick="clearDebugMessages()" tabindex="0">Clear Debug Messages</button>
+            <div id="debugMessages"></div>
+        </div>
     </div>
 </body>
 
@@ -33,19 +38,29 @@
                 if (focusedIndex < elementsArray.length - 1) {
                     elementsArray[focusedIndex + 1].focus();
                     focusedIndex++;
+                    if (typeof addDebugMessage === 'function') {
+                        addDebugMessage(`Navigated down to element ${focusedIndex}`, 'info');
+                    }
                 }
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 if (focusedIndex > 0) {
                     elementsArray[focusedIndex - 1].focus();
                     focusedIndex--;
+                    if (typeof addDebugMessage === 'function') {
+                        addDebugMessage(`Navigated up to element ${focusedIndex}`, 'info');
+                    }
                 }
             } else if (e.key == 'Enter') {
                 e.preventDefault();
                 const element = elementsArray[focusedIndex];
                 element.click();
-                if (element.classList.contains('ssdpItem')) {
+                if (element.classList.contains('upnpItem')) {
                     const uri = element.getAttribute('data-uri');
+                    const friendlyName = element.getAttribute('data-friendlyName');
+                    if (typeof addDebugMessage === 'function') {
+                        addDebugMessage(`Selected UPnP device: ${friendlyName}`, 'info');
+                    }
                     setRPC(uri);
                 }
             }
@@ -62,18 +77,41 @@
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
+        
+        // Add initial debug message
+        setTimeout(() => {
+            if (typeof addDebugMessage === 'function') {
+                addDebugMessage('HyperTizen UI initialized', 'info');
+                addDebugMessage('Attempting to fetch device IP from local server...', 'info');
+            }
+        }, 100);
+        
         fetch('http://127.0.0.1:8081').then(res => res.text()).then(ip => {
             deviceIP = ip;
+            if (typeof addDebugMessage === 'function') {
+                addDebugMessage(`Device IP retrieved: ${ip}`, 'info');
+                addDebugMessage('Testing WebSocket connection...', 'info');
+            }
 
             const testWS = new WebSocket(`ws://${ip}:8086`);
 
             testWS.onopen = function () {
+                if (typeof addDebugMessage === 'function') {
+                    addDebugMessage('WebSocket test connection successful', 'info');
+                }
                 testWS.close();
                 open();
             };
             testWS.onerror = function () {
+                if (typeof addDebugMessage === 'function') {
+                    addDebugMessage('WebSocket test connection failed, reloading page...', 'error');
+                }
                 location.reload();
             };
+        }).catch(error => {
+            if (typeof addDebugMessage === 'function') {
+                addDebugMessage(`Failed to fetch device IP: ${error.message}`, 'error');
+            }
         });
     };
 </script>

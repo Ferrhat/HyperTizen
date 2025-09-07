@@ -5,11 +5,12 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using Newtonsoft.Json;
 using HyperTizen.WebSocket.DataTypes;
 using Rssdp;
 using Tizen.Applications;
-using static HyperTizen.WebSocket.DataTypes.SSDPScanResultEvent;
+using static HyperTizen.WebSocket.DataTypes.UPnPScanResultEvent;
 
 namespace HyperTizen.WebSocket
 {
@@ -19,7 +20,9 @@ namespace HyperTizen.WebSocket
         private List<string> usnList = new List<string>()
         {
             "urn:hyperion-project.org:device:basic:1",
-            "urn:hyperhdr.eu:device:basic:1"
+            "urn:hyperhdr.eu:device:basic:1",
+            "urn:schemas-upnp-org:device:Basic:1",
+            
         };
 
         public WSServer(string uriPrefix)
@@ -68,10 +71,10 @@ namespace HyperTizen.WebSocket
 
             switch (data.Event)
             {
-                case Event.ScanSSDP:
+                case Event.ScanUPnP:
                     {
-                        var devices = await ScanSSDPAsync();
-                        string resultEvent = JsonConvert.SerializeObject(new SSDPScanResultEvent(devices));
+                        var devices = await ScanUPnPAsync();
+                        string resultEvent = JsonConvert.SerializeObject(new UPnPScanResultEvent(devices));
                         await SendAsync(webSocket, resultEvent);
                         break;
                     }
@@ -79,7 +82,7 @@ namespace HyperTizen.WebSocket
                 case Event.ReadConfig:
                     {
                         ReadConfigEvent readConfigEvent = JsonConvert.DeserializeObject<ReadConfigEvent>(message);
-                        string result = await ReadConfigAsync(readConfigEvent);
+                        string result = ReadConfigAsync(readConfigEvent);
                         await SendAsync(webSocket, result);
                         break;
                     }
@@ -93,25 +96,59 @@ namespace HyperTizen.WebSocket
             }
         }
 
-        private async Task<List<SSDPDevice>> ScanSSDPAsync()
+        private async Task<List<UPnPDevice>> ScanUPnPAsync()
         {
-            var devices = new List<SSDPDevice>();
+            var devices = new List<UPnPDevice>();
             using (var deviceLocator = new SsdpDeviceLocator())
             {
-                var foundDevices = await deviceLocator.SearchAsync();
+                // Search for all UPnP root devices
+                var foundDevices = await deviceLocator.SearchAsync("upnp:rootdevice");
+                
                 foreach (var foundDevice in foundDevices)
                 {
+                    // Check if this is a device type we're interested in
                     if (!usnList.Contains(foundDevice.NotificationType)) continue;
 
-                    var fullDevice = await foundDevice.GetDeviceInfo();
-                    Uri descLocation = foundDevice.DescriptionLocation;
-                    devices.Add(new SSDPDevice(fullDevice.FriendlyName, descLocation.OriginalString.Replace(descLocation.PathAndQuery, "")));
+                    try
+                    {
+                        var fullDevice = await foundDevice.GetDeviceInfo();
+                        Uri descLocation = foundDevice.DescriptionLocation;
+                        devices.Add(new UPnPDevice(fullDevice.FriendlyName, descLocation.OriginalString.Replace(descLocation.PathAndQuery, "")));
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error if needed, but continue with other devices
+                        System.Diagnostics.Debug.WriteLine($"Error getting device info: {ex.Message}");
+                    }
+                }
+                
+                // Also search for basic devices
+                var basicDevices = await deviceLocator.SearchAsync("urn:schemas-upnp-org:device:Basic:1");
+                foreach (var foundDevice in basicDevices)
+                {
+                    try
+                    {
+                        var fullDevice = await foundDevice.GetDeviceInfo();
+                        Uri descLocation = foundDevice.DescriptionLocation;
+                        var device = new UPnPDevice(fullDevice.FriendlyName, descLocation.OriginalString.Replace(descLocation.PathAndQuery, ""));
+                        
+                        // Avoid duplicates
+                        if (!devices.Any(d => d.UrlBase == device.UrlBase))
+                        {
+                            devices.Add(device);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error if needed, but continue with other devices
+                        System.Diagnostics.Debug.WriteLine($"Error getting basic device info: {ex.Message}");
+                    }
                 }
             }
             return devices;
         }
 
-        private async Task<string> ReadConfigAsync(ReadConfigEvent readConfigEvent)
+        private string ReadConfigAsync(ReadConfigEvent readConfigEvent)
         {
             string result;
             if (!Preference.Contains(readConfigEvent.key))
@@ -172,7 +209,6 @@ namespace HyperTizen.WebSocket
     {
         private string uri;
         public ClientWebSocket client;
-        private byte errorTimes = 0;
 
         public WebSocketClient(string uri)
         {

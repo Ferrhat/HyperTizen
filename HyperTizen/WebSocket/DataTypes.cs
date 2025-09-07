@@ -7,8 +7,8 @@ namespace HyperTizen.WebSocket.DataTypes
         SetConfig,
         ReadConfig,
         ReadConfigResult,
-        ScanSSDP,
-        SSDPScanResult
+        ScanUPnP,
+        UPnPScanResult
     }
 
     public class BasicEvent
@@ -42,20 +42,20 @@ namespace HyperTizen.WebSocket.DataTypes
         public object value { get; set; }
     }
 
-    public class SSDPScanResultEvent : BasicEvent
+    public class UPnPScanResultEvent : BasicEvent
     {
-        public SSDPScanResultEvent(List<SSDPDevice> devices)
+        public UPnPScanResultEvent(List<UPnPDevice> devices)
         {
             this.devices = devices;
-            this.Event = Event.SSDPScanResult;
+            this.Event = Event.UPnPScanResult;
         }
-        public List<SSDPDevice> devices { get; set; }
-        public class SSDPDevice
+        public List<UPnPDevice> devices { get; set; }
+        public class UPnPDevice
         {
             public string FriendlyName { get; set; }
             public string UrlBase { get; set; }
 
-            public SSDPDevice(string friendlyName, string urlBase)
+            public UPnPDevice(string friendlyName, string urlBase)
             {
                 FriendlyName = friendlyName;
                 UrlBase = urlBase;
