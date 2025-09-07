@@ -52,6 +52,44 @@ a {
     text-align: center;
 }
 
+#serviceControls {
+    margin: 20px 0;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+#startServiceBtn, #checkServiceBtn {
+    background-color: #4CAF50;
+    color: white;
+    border: 2px solid #45a049;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 150px;
+}
+
+#checkServiceBtn {
+    background-color: #2196F3;
+    border-color: #1976D2;
+}
+
+#startServiceBtn:hover, #startServiceBtn:focus {
+    background-color: #45a049;
+    transform: scale(1.05);
+    outline: none;
+}
+
+#checkServiceBtn:hover, #checkServiceBtn:focus {
+    background-color: #1976D2;
+    transform: scale(1.05);
+    outline: none;
+}
+
 #debugContainer {
     margin-top: 30px;
     width: 80%;

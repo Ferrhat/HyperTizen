@@ -14,6 +14,10 @@
     <div class="content">
         <h1>HyperTizen</h1>
         <h3 id="status">Status</h3>
+        <div id="serviceControls">
+            <button id="startServiceBtn" onclick="forceStartService()" tabindex="0">🚀 Start Service</button>
+            <button id="checkServiceBtn" onclick="checkServiceStatus()" tabindex="0">🔍 Check Service</button>
+        </div>
         <a><input type="checkbox" id="enabled"> Enabled</a>
         <h2 id="upnpDeviceTitle">UPnP Devices</h2>
         <div id="upnpItems"></div>
@@ -26,6 +30,94 @@
 </body>
 
 <script>
+    // Service control functions
+    function forceStartService() {
+        if (typeof addDebugMessage === 'function') {
+            addDebugMessage('🚀 Manual service start requested...', 'info');
+        }
+        
+        try {
+            if (typeof tizen !== 'undefined' && tizen.application) {
+                tizen.application.launch(
+                    'io.gh.reisxd.HyperTizen',
+                    function () {
+                        if (typeof addDebugMessage === 'function') {
+                            addDebugMessage('✅ Service started successfully via manual trigger!', 'info');
+                            addDebugMessage('🔌 WebSocket should now be available on port 8086', 'info');
+                        }
+                        
+                        // Test the connection after a short delay
+                        setTimeout(checkServiceStatus, 2000);
+                    },
+                    function (error) {
+                        if (typeof addDebugMessage === 'function') {
+                            addDebugMessage(`❌ Manual service start failed: ${error.message}`, 'error');
+                        }
+                    }
+                );
+            } else {
+                if (typeof addDebugMessage === 'function') {
+                    addDebugMessage('❌ Tizen API not available (running outside Tizen environment)', 'error');
+                }
+            }
+        } catch (e) {
+            if (typeof addDebugMessage === 'function') {
+                addDebugMessage(`❌ Error starting service: ${e.message}`, 'error');
+            }
+        }
+    }
+    
+    function checkServiceStatus() {
+        if (typeof addDebugMessage === 'function') {
+            addDebugMessage('🔍 Checking service status...', 'info');
+        }
+        
+        try {
+            if (typeof tizen !== 'undefined' && tizen.application) {
+                // Check if the service is installed/available
+                tizen.application.getAppInfo('io.gh.reisxd.HyperTizen');
+                if (typeof addDebugMessage === 'function') {
+                    addDebugMessage('✅ HyperTizen service is installed and available', 'info');
+                }
+                
+                // Try to test the WebSocket connection
+                if (typeof deviceIP !== 'undefined' && deviceIP) {
+                    const testIP = deviceIP;
+                    if (typeof addDebugMessage === 'function') {
+                        addDebugMessage(`🔌 Testing WebSocket connection to ${testIP}:8086...`, 'info');
+                    }
+                    
+                    const testWS = new WebSocket(`ws://${testIP}:8086`);
+                    testWS.onopen = function() {
+                        if (typeof addDebugMessage === 'function') {
+                            addDebugMessage('✅ WebSocket service is running and accessible!', 'info');
+                        }
+                        testWS.close();
+                    };
+                    testWS.onerror = function() {
+                        if (typeof addDebugMessage === 'function') {
+                            addDebugMessage('❌ WebSocket service is not responding', 'error');
+                            addDebugMessage('💡 Try using the "Start Service" button', 'warning');
+                        }
+                    };
+                } else {
+                    if (typeof addDebugMessage === 'function') {
+                        addDebugMessage('⚠️ Device IP not available for testing', 'warning');
+                    }
+                }
+            } else {
+                if (typeof addDebugMessage === 'function') {
+                    addDebugMessage('❌ Tizen API not available', 'error');
+                }
+            }
+        } catch (e) {
+            if (typeof addDebugMessage === 'function') {
+                addDebugMessage(`❌ Service not found or not accessible: ${e.message}`, 'error');
+                addDebugMessage('💡 The service may not be installed', 'warning');
+            }
+        }
+    }
+
     window.onload = function () {
         let elements = document.querySelectorAll('button, input, [tabindex]');
         let elementsArray = Array.prototype.slice.call(elements);
