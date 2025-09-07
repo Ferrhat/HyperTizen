@@ -79,11 +79,12 @@
             border-radius: 8px;
             padding: 20px;
             margin: 20px 0;
-            height: 300px;
+            height: 500px;
             overflow-y: auto;
             text-align: left;
             font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 16px;
+            line-height: 1.4;
         }
         
         .log-entry {
@@ -322,8 +323,30 @@
             updateStatus('Checking background service...', 'warning');
             
             try {
-                // Check if this launcher app itself is running as a service
+                // Check if Tizen application API is available
+                if (typeof tizen === 'undefined' || !tizen.application) {
+                    addLog('❌ Tizen application API not available', 'error');
+                    return;
+                }
+                
+                // Check if getAppsContext function exists
+                if (typeof tizen.application.getAppsContext !== 'function') {
+                    addLog('❌ getAppsContext function not available', 'error');
+                    addLog('💡 This API may not be supported on this Tizen version', 'warning');
+                    return;
+                }
+                
+                // Try to get running apps context
                 const runningApps = tizen.application.getAppsContext();
+                
+                if (!runningApps || !Array.isArray(runningApps)) {
+                    addLog('⚠️ No running apps context available', 'warning');
+                    return;
+                }
+                
+                addLog(`📱 Found ${runningApps.length} running applications`, 'info');
+                
+                // Check if this launcher app itself is running as a service
                 const launcherApp = runningApps.find(app => app.appId === 'io.gh.reisxd.ServiceLauncher');
                 
                 if (launcherApp) {
@@ -346,6 +369,8 @@
                 
             } catch (e) {
                 addLog(`❌ Error checking background service: ${e.message}`, 'error');
+                addLog(`   Error name: ${e.name || 'Unknown'}`, 'error');
+                addLog('💡 This feature may not work on all Tizen versions', 'warning');
             }
         }
         
